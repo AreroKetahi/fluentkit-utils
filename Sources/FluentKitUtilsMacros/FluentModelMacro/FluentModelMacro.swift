@@ -18,7 +18,7 @@ public struct FluentModelMacro {
 
     enum ModelDiagnostic: String, DiagnosticMessage {
         case requiresClass = "@FluentModel can only be attached to a class declaration."
-        case requiresExplicitSchema = "@FluentModel requires a static string schema name."
+        case invalidSchema = "@FluentModel schema must be a static string literal or nil."
         case requiresSingleBinding = "@FluentModel only supports stored properties with a single binding."
         case requiresExplicitType = "@FluentModel properties must declare an explicit type."
         case unsupportedProperty = "@FluentModel only supports stored properties."
@@ -27,7 +27,7 @@ public struct FluentModelMacro {
         case relationshipMissingKeyPath = "@Relationship(.child, ...) requires a relationship key path."
         case relationshipUnexpectedKeyPath = "@Relationship(.parent) does not accept a relationship key path."
         case relationshipInvalidParentType = "@Relationship(.parent) requires a non-collection model type."
-        case relationshipInvalidChildType = "@Relationship(.child, ...) requires an array property type."
+        case relationshipInvalidChildType = "@Relationship(kind: .child, for:) requires an optional model or array property type."
         case migrationVersionsMustStartAtOne = "#Migration versions must start at 1."
         case migrationVersionsMustBeContinuous = "#Migration versions must be continuous."
         case migrationVersionGreaterThanOneRequiresEvolution = "#Migration with version greater than 1 must use ModelEvolution values."
@@ -48,6 +48,12 @@ public struct FluentModelMacro {
     enum RelationshipKind: String {
         case parent
         case child
+        case siblings
+    }
+
+    enum SchemaResolution {
+        case value(String)
+        case invalid
     }
 
     enum FieldKind: Equatable {
@@ -56,6 +62,7 @@ public struct FluentModelMacro {
         case timestamp(TimestampKind)
         case parent
         case child
+        case siblings
     }
 
     struct AttributeOptions {

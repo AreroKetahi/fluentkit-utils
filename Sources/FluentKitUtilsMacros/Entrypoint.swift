@@ -15,5 +15,6 @@ struct FluentKitUtilsPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
         FluentModelMacro.self,
         EmptyMacro.self,
+        SiblingIntermediateMacro.self,
     ]
 }

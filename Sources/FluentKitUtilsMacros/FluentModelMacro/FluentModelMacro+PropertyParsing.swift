@@ -10,14 +10,26 @@ import SwiftSyntax
 import SwiftSyntaxMacros
 
 extension FluentModelMacro {
-    static func schemaName(from node: AttributeSyntax) -> String? {
-        guard case let .argumentList(arguments) = node.arguments,
-              let firstArgument = arguments.first
-        else {
-            return nil
+    static func schemaName(from node: AttributeSyntax, defaultingTo modelName: String) -> SchemaResolution {
+        let defaultSchema = pluralizedSchemaName(for: modelName)
+
+        guard case let .argumentList(arguments) = node.arguments else {
+            return .value(defaultSchema)
         }
 
-        return stringLiteralValue(from: firstArgument.expression)
+        guard let firstArgument = arguments.first else {
+            return .value(defaultSchema)
+        }
+
+        if firstArgument.expression.is(NilLiteralExprSyntax.self) {
+            return .value(defaultSchema)
+        }
+
+        guard let schema = stringLiteralValue(from: firstArgument.expression) else {
+            return .invalid
+        }
+
+        return .value(schema)
     }
 
     static func extractProperties(
@@ -58,6 +70,7 @@ extension FluentModelMacro {
             if hasRelationshipAttribute(variable.attributes) {
                 return relationshipMetadata(
                     from: variable.attributes,
+                    modelName: declaration.name.text,
                     propertyName: namePattern.identifier.text,
                     rawType: rawType,
                     context: context
@@ -133,6 +146,7 @@ extension FluentModelMacro {
 
     static func relationshipMetadata(
         from attributes: AttributeListSyntax,
+        modelName: String,
         propertyName: String,
         rawType: String,
         context: some MacroExpansionContext,
@@ -156,7 +170,7 @@ extension FluentModelMacro {
 
         switch kind {
         case .parent:
-            guard arguments.count == 1 else {
+            guard arguments.count <= 2 else {
                 if emitDiagnostics {
                     context.diagnose(Diagnostic(node: Syntax(attribute), message: ModelDiagnostic.relationshipUnexpectedKeyPath))
                 }
@@ -184,14 +198,15 @@ extension FluentModelMacro {
                 isOptional: isOptional
             )
         case .child:
-            guard let relationshipExpression = arguments.dropFirst().first?.expression else {
+            guard let targetType = arguments.dropFirst().first.flatMap({ modelTypeName(from: $0.expression) }) else {
                 if emitDiagnostics {
                     context.diagnose(Diagnostic(node: Syntax(attribute), message: ModelDiagnostic.relationshipMissingKeyPath))
                 }
                 return nil
             }
 
-            guard let elementType = arrayElementType(from: rawType) else {
+            let isOptionalChild = optionalWrappedType(from: rawType) != nil
+            guard arrayElementType(from: rawType) != nil || isOptionalChild else {
                 if emitDiagnostics {
                     context.diagnose(Diagnostic(node: Syntax(attribute), message: ModelDiagnostic.relationshipInvalidChildType))
                 }
@@ -205,8 +220,39 @@ extension FluentModelMacro {
                 key: defaultKey(for: propertyName),
                 isUnique: false,
                 scalarType: nil,
-                relatedType: elementType,
-                relatedKeyPath: relationshipExpression.trimmedDescription,
+                relatedType: targetType,
+                relatedKeyPath: "\\\(targetType).$\(defaultModelPropertyName(for: modelName))",
+                isOptional: isOptionalChild
+            )
+        case .siblings:
+            guard let targetType = arguments.dropFirst().first.flatMap({ modelTypeName(from: $0.expression) }) else {
+                if emitDiagnostics {
+                    context.diagnose(Diagnostic(node: Syntax(attribute), message: ModelDiagnostic.relationshipMissingKeyPath))
+                }
+                return nil
+            }
+
+            guard arrayElementType(from: rawType) != nil else {
+                if emitDiagnostics {
+                    context.diagnose(Diagnostic(node: Syntax(attribute), message: ModelDiagnostic.relationshipInvalidChildType))
+                }
+                return nil
+            }
+
+            let models = [modelName, targetType].sorted()
+            let intermediate = "$_FluentSibling_\(models[0])_\(models[1])"
+            let from = defaultModelPropertyName(for: modelName)
+            let to = defaultModelPropertyName(for: targetType)
+
+            return PropertyMetadata(
+                name: propertyName,
+                type: rawType,
+                kind: .siblings,
+                key: defaultKey(for: propertyName),
+                isUnique: false,
+                scalarType: nil,
+                relatedType: targetType,
+                relatedKeyPath: "through: \(intermediate).self, from: \\\(intermediate).$\(from), to: \\\(intermediate).$\(to)",
                 isOptional: false
             )
         }

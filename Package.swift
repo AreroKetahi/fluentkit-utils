@@ -24,7 +24,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "https://github.com/swiftlang/swift-syntax.git",
-            from: "603.0.0-latest"
+            "602.0.0-latest"..."604.0.0-latest"
         ),
         .package(
             url: "https://github.com/vapor/fluent-kit.git",

@@ -16,8 +16,11 @@ struct FluentModelMacroExpansionTests {
                 var email: String
                 @Attribute(.key("avatar_url"))
                 var avatarURL: String?
-                @Relationship(.child, \\SessionSchema.$user)
+                var tokenID: String?
+                @Relationship(kind: .child, for: SessionSchema.self)
                 var sessions: [SessionSchema]
+                @Relationship(kind: .child, for: ProfileSchema.self)
+                var profile: ProfileSchema?
                 var createdAt: Date?
             }
             """
@@ -32,8 +35,12 @@ struct FluentModelMacroExpansionTests {
                 var email: String
                 @OptionalField(key: "avatar_url")
                 var avatarURL: String?
-                @Children(for: \\SessionSchema.$user)
+                @OptionalField(key: "token_id")
+                var tokenID: String?
+                @Children(for: \\SessionSchema.$userSchema)
                 var sessions: [SessionSchema]
+                @OptionalChild(for: \\ProfileSchema.$userSchema)
+                var profile: ProfileSchema?
                 @Timestamp(key: "created_at", on: .create)
                 var createdAt: Date?
             
@@ -54,6 +61,7 @@ struct FluentModelMacroExpansionTests {
                         schemaBuilder = schemaBuilder.field("name", DatabaseSchema.DataType.string, DatabaseSchema.FieldConstraint.required)
                         schemaBuilder = schemaBuilder.field("email", DatabaseSchema.DataType.string, DatabaseSchema.FieldConstraint.required)
                         schemaBuilder = schemaBuilder.field("avatar_url", DatabaseSchema.DataType.string)
+                        schemaBuilder = schemaBuilder.field("token_id", DatabaseSchema.DataType.string)
                         schemaBuilder = schemaBuilder.field("created_at", DatabaseSchema.DataType.datetime)
                         schemaBuilder = schemaBuilder.unique(on: "email")
                         try await schemaBuilder.create()
@@ -65,6 +73,141 @@ struct FluentModelMacroExpansionTests {
             }
             
             extension UserSchema: Model, @unchecked Sendable {
+            }
+            """
+        }
+    }
+
+    @Test
+    func defaultsSchemaToModelNameSnakeCaseWhenOmitted() throws {
+        assertMacro {
+            """
+            @FluentModel
+            final class APIKey {
+                var id: UUID?
+                var tokenID: String
+            }
+            """
+        } expansion: {
+            """
+            final class APIKey {
+                @ID(key: .id)
+                var id: UUID?
+                @Field(key: "token_id")
+                var tokenID: String
+            
+                static let schema = "api_keys"
+            
+                init() {
+                }
+            
+                static let $migrations: [any FluentKit.Migration] = [$s6APIKey11MigrationV1V()]
+            
+                struct $s6APIKey11MigrationV1V: AsyncMigration {
+                    var name: String {
+                        "$s6APIKey11MigrationV1V"
+                    }
+                    func prepare(on database: any Database) async throws {
+                        var schemaBuilder = database.schema("api_keys")
+                        schemaBuilder = schemaBuilder.id()
+                        schemaBuilder = schemaBuilder.field("token_id", DatabaseSchema.DataType.string, DatabaseSchema.FieldConstraint.required)
+                        try await schemaBuilder.create()
+                    }
+                    func revert(on database: any Database) async throws {
+                        try await database.schema("api_keys").delete()
+                    }
+                }
+            }
+            
+            extension APIKey: Model, @unchecked Sendable {
+            }
+            """
+        }
+    }
+
+    @Test
+    func defaultsSchemaToModelNameSnakeCaseWhenNil() throws {
+        assertMacro {
+            """
+            @FluentModel(nil)
+            final class UserSession {
+                var id: UUID?
+            }
+            """
+        } expansion: {
+            """
+            final class UserSession {
+                @ID(key: .id)
+                var id: UUID?
+            
+                static let schema = "user_sessions"
+            
+                init() {
+                }
+            
+                static let $migrations: [any FluentKit.Migration] = [$s11UserSession11MigrationV1V()]
+            
+                struct $s11UserSession11MigrationV1V: AsyncMigration {
+                    var name: String {
+                        "$s11UserSession11MigrationV1V"
+                    }
+                    func prepare(on database: any Database) async throws {
+                        var schemaBuilder = database.schema("user_sessions")
+                        schemaBuilder = schemaBuilder.id()
+            
+                        try await schemaBuilder.create()
+                    }
+                    func revert(on database: any Database) async throws {
+                        try await database.schema("user_sessions").delete()
+                    }
+                }
+            }
+            
+            extension UserSession: Model, @unchecked Sendable {
+            }
+            """
+        }
+    }
+
+    @Test
+    func pluralizesDefaultSchemaName() throws {
+        assertMacro {
+            """
+            @FluentModel
+            final class Category {
+                var id: UUID?
+            }
+            """
+        } expansion: {
+            """
+            final class Category {
+                @ID(key: .id)
+                var id: UUID?
+            
+                static let schema = "categories"
+            
+                init() {
+                }
+            
+                static let $migrations: [any FluentKit.Migration] = [$s8Category11MigrationV1V()]
+            
+                struct $s8Category11MigrationV1V: AsyncMigration {
+                    var name: String {
+                        "$s8Category11MigrationV1V"
+                    }
+                    func prepare(on database: any Database) async throws {
+                        var schemaBuilder = database.schema("categories")
+                        schemaBuilder = schemaBuilder.id()
+            
+                        try await schemaBuilder.create()
+                    }
+                    func revert(on database: any Database) async throws {
+                        try await database.schema("categories").delete()
+                    }
+                }
+            }
+            
+            extension Category: Model, @unchecked Sendable {
             }
             """
         }
@@ -209,6 +352,54 @@ struct FluentModelMacroExpansionTests {
     }
 
     @Test
+    func generatesConventionBasedSiblingRelationship() throws {
+        assertMacro {
+            """
+            @FluentModel
+            final class Planet {
+                var id: UUID?
+                @Relationship(kind: .siblings, for: Tag.self)
+                var tags: [Tag]
+            }
+            """
+        } expansion: {
+            """
+            final class Planet {
+                @ID(key: .id)
+                var id: UUID?
+                @Siblings(through: $_FluentSibling_Planet_Tag.self, from: \\$_FluentSibling_Planet_Tag.$planet, to: \\$_FluentSibling_Planet_Tag.$tag)
+                var tags: [Tag]
+
+                static let schema = "planets"
+
+                init() {
+                }
+
+                static let $migrations: [any FluentKit.Migration] = [$s6Planet11MigrationV1V()]
+
+                struct $s6Planet11MigrationV1V: AsyncMigration {
+                    var name: String {
+                        "$s6Planet11MigrationV1V"
+                    }
+                    func prepare(on database: any Database) async throws {
+                        var schemaBuilder = database.schema("planets")
+                        schemaBuilder = schemaBuilder.id()
+
+                        try await schemaBuilder.create()
+                    }
+                    func revert(on database: any Database) async throws {
+                        try await database.schema("planets").delete()
+                    }
+                }
+            }
+
+            extension Planet: Model, @unchecked Sendable {
+            }
+            """
+        }
+    }
+
+    @Test
     func autoMigratableEmitsRuntimeDiscoveryRecords() throws {
         assertMacro {
             """
@@ -216,7 +407,7 @@ struct FluentModelMacroExpansionTests {
             @FluentModel("sessions")
             final class SessionSchema {
                 var id: UUID?
-                @Relationship(.parent)
+                @Relationship(kind: .parent)
                 var user: UserSchema
             }
             """

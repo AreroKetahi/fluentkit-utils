@@ -14,10 +14,6 @@ extension FluentModelMacro: PeerMacro {
         providingPeersOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        guard schemaName(from: node) != nil else {
-            return []
-        }
-
         guard let classDecl = declaration.as(ClassDeclSyntax.self),
               hasAttribute(named: "AutoMigratable", in: classDecl.attributes)
         else {
@@ -25,6 +21,10 @@ extension FluentModelMacro: PeerMacro {
         }
 
         let modelName = classDecl.name.text
+        guard case .value = schemaName(from: node, defaultingTo: modelName) else {
+            return []
+        }
+
         let properties = extractProperties(from: classDecl, context: context)
         let explicitMigrations = explicitMigrations(from: classDecl, properties: properties, context: context)
         let migrations = explicitMigrations.isEmpty

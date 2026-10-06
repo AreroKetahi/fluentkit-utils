@@ -9,6 +9,26 @@ import SwiftSyntax
 import Foundation
 
 extension FluentModelMacro {
+    static func modelTypeName(from expression: ExprSyntax) -> String? {
+        guard let memberAccess = expression.as(MemberAccessExprSyntax.self),
+              memberAccess.declName.baseName.tokenKind == .keyword(.`self`),
+              let base = memberAccess.base?.as(DeclReferenceExprSyntax.self)
+        else {
+            return nil
+        }
+
+        return base.baseName.text
+    }
+
+    static func defaultModelPropertyName(for modelName: String) -> String {
+        let words = defaultKey(for: modelName).split(separator: "_")
+        guard let first = words.first else { return modelName }
+
+        return String(first) + words.dropFirst().map { word in
+            word.prefix(1).uppercased() + word.dropFirst()
+        }.joined()
+    }
+
     static func attributeOptions(from attributes: AttributeListSyntax) -> AttributeOptions {
         var options = AttributeOptions()
 
@@ -187,10 +207,17 @@ extension FluentModelMacro {
     }
 
     static func defaultKey(for propertyName: String) -> String {
-        propertyName.enumerated().reduce(into: "") { result, item in
+        let characters = Array(propertyName)
+
+        return characters.enumerated().reduce(into: "") { result, item in
             let (index, character) = item
             if character.isUppercase {
-                if index != 0 {
+                let previous = index > 0 ? characters[index - 1] : nil
+                let next = index + 1 < characters.count ? characters[index + 1] : nil
+                let startsNewWord = previous?.isLowercase == true || previous?.isNumber == true
+                let endsAcronym = previous?.isUppercase == true && next?.isLowercase == true
+
+                if index != 0, startsNewWord || endsAcronym {
                     result.append("_")
                 }
                 result.append(character.lowercased())
@@ -198,5 +225,31 @@ extension FluentModelMacro {
                 result.append(character)
             }
         }
+    }
+
+    static func pluralizedSchemaName(for modelName: String) -> String {
+        pluralize(defaultKey(for: modelName))
+    }
+
+    static func pluralize(_ value: String) -> String {
+        guard !value.isEmpty else {
+            return value
+        }
+
+        if value.hasSuffix("ch") || value.hasSuffix("sh") {
+            return value + "es"
+        }
+
+        if let last = value.last, Set<Character>(["s", "x", "z"]).contains(last) {
+            return value + "es"
+        }
+
+        if value.hasSuffix("y"),
+           let previous = value.dropLast().last,
+           !Set<Character>(["a", "e", "i", "o", "u"]).contains(previous) {
+            return String(value.dropLast()) + "ies"
+        }
+
+        return value + "s"
     }
 }

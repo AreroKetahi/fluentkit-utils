@@ -176,13 +176,16 @@ extension FluentModelMacro {
             let wrapper = property.isOptional ? "OptionalParent" : "Parent"
             return "@\(wrapper)(key: \"\(property.key)\")"
         case .child:
-            return "@Children(for: \(property.relatedKeyPath!))"
+            let wrapper = property.isOptional ? "OptionalChild" : "Children"
+            return "@\(wrapper)(for: \(property.relatedKeyPath!))"
+        case .siblings:
+            return "@Siblings(\(property.relatedKeyPath!))"
         }
     }
 
     static func migrationFieldLine(for property: PropertyMetadata) -> String? {
         switch property.kind {
-        case .id, .child:
+        case .id, .child, .siblings:
             return nil
         case .parent:
             let required = property.isOptional ? "" : ", DatabaseSchema.FieldConstraint.required"
@@ -251,7 +254,7 @@ extension FluentModelMacro {
     static func migrationFieldLines(for property: PropertyMetadata, overridingKey key: String) -> [String] {
         let fieldLine: String?
         switch property.kind {
-        case .id, .child:
+        case .id, .child, .siblings:
             fieldLine = nil
         case .parent:
             let required = property.isOptional ? "" : ", DatabaseSchema.FieldConstraint.required"

@@ -10,6 +10,7 @@
 public enum RelationshipKind: Sendable {
     case parent
     case child
+    case siblings
 }
 
 public enum ModelAttributeOption: Sendable {
@@ -32,11 +33,17 @@ public macro AutoMigratable() =
         type: "EmptyMacro"
     )
 
-@attached(member, names: named(schema), named(init), named($migrations), arbitrary)
+@attached(
+    member,
+    names: named(schema),
+    named(init),
+    named($migrations),
+    arbitrary
+)
 @attached(memberAttribute)
 @attached(extension, conformances: Model, Sendable)
 @attached(peer, names: prefixed(`$`))
-public macro FluentModel(_ schema: StaticString) =
+public macro FluentModel(_ schema: StaticString? = nil) =
     #externalMacro(
         module: "FluentKitUtilsMacros",
         type: "FluentModelMacro"
@@ -51,8 +58,17 @@ public macro Attribute(_ options: ModelAttributeOption...) =
 
 @attached(peer)
 public macro Relationship(
-    _ type: RelationshipKind,
-    _ relationship: Any? = nil
+    kind: RelationshipKind
+) =
+    #externalMacro(
+        module: "FluentKitUtilsMacros",
+        type: "EmptyMacro"
+    )
+
+@attached(peer)
+public macro Relationship<M: Model>(
+    kind: RelationshipKind,
+    for relationship: M.Type? = nil
 ) =
     #externalMacro(
         module: "FluentKitUtilsMacros",
@@ -77,4 +93,16 @@ public macro Migration<T: Model>(
     #externalMacro(
         module: "FluentKitUtilsMacros",
         type: "EmptyMacro"
+    )
+
+// MARK: - Siblings
+
+@freestanding(declaration, names: prefixed($_FluentSibling_))
+public macro SiblingIntermediate<L: Model, R: Model>(
+    between first: L.Type,
+    _ second: R.Type
+) =
+    #externalMacro(
+        module: "FluentKitUtilsMacros",
+        type: "SiblingIntermediateMacro"
     )

@@ -24,8 +24,8 @@ public enum _MigrationDiscovery {
         guard unsafe record.version == version else { return nil }
         let accessor = unsafe record.accessor
 
-        return unsafe withUnsafeTemporaryAllocation(of: _MigrationDescriptor.self, capacity: 1) { buffer in
-            let initialized = unsafe withUnsafePointer(to: _MigrationDescriptor.self) { type in
+        return withUnsafeTemporaryAllocation(of: _MigrationDescriptor.self, capacity: 1) { buffer in
+            let initialized = withUnsafePointer(to: _MigrationDescriptor.self) { type in
                 unsafe accessor(buffer.baseAddress!, UnsafeRawPointer(type), nil, 0)
             }
 

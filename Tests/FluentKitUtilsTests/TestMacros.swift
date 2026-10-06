@@ -7,4 +7,5 @@ let testMacros: [String: Macro.Type] = [
     "Attribute": EmptyMacro.self,
     "Relationship": EmptyMacro.self,
     "Migration": EmptyMacro.self,
+    "SiblingIntermediate": SiblingIntermediateMacro.self,
 ]

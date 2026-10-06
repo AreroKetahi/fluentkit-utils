@@ -9,7 +9,7 @@ struct FluentModelMacroDiagnosticTests {
             """
             @FluentModel("users")
             final class UserSchema {
-                @Relationship(.child)
+                @Relationship(kind: .child)
                 var sessions: [SessionSchema]
             }
             """
@@ -17,8 +17,8 @@ struct FluentModelMacroDiagnosticTests {
             """
             @FluentModel("users")
             final class UserSchema {
-                @Relationship(.child)
-                ┬────────────────────
+                @Relationship(kind: .child)
+                ┬──────────────────────────
                 ╰─ 🛑 @Relationship(.child, ...) requires a relationship key path.
                 var sessions: [SessionSchema]
             }

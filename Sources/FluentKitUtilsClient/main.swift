@@ -32,7 +32,7 @@ final class UserSchema {
 final class SessionSchema {
     var id: UUID?
     
-    @Relationship(.parent)
+    @Relationship(kind: .parent, for: UserSchema.self)
     var user: UserSchema?
     
     @Attribute(.key("ip_address"))

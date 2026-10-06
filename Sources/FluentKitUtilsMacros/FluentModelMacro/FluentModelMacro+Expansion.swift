@@ -17,19 +17,23 @@ extension FluentModelMacro: MemberMacro {
         conformingTo protocols: [TypeSyntax],
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        guard let schema = schemaName(from: node) else {
-            context.diagnose(Diagnostic(node: Syntax(node), message: ModelDiagnostic.requiresExplicitSchema))
-            return []
-        }
-
         guard let classDecl = declaration.as(ClassDeclSyntax.self) else {
             context.diagnose(Diagnostic(node: Syntax(declaration), message: ModelDiagnostic.requiresClass))
             return []
         }
 
+        let modelName = classDecl.name.text
+        let schema: String
+        switch schemaName(from: node, defaultingTo: modelName) {
+        case let .value(resolvedSchema):
+            schema = resolvedSchema
+        case .invalid:
+            context.diagnose(Diagnostic(node: Syntax(node), message: ModelDiagnostic.invalidSchema))
+            return []
+        }
+
         let properties = extractProperties(from: classDecl, context: context)
         let explicitMigrations = explicitMigrations(from: classDecl, properties: properties, context: context)
-        let modelName = classDecl.name.text
         let migrations = explicitMigrations.isEmpty
             ? [
                 migrationDeclaration(
@@ -84,6 +88,7 @@ extension FluentModelMacro: MemberAttributeMacro {
         if hasRelationshipAttribute(variable.attributes) {
             metadata = relationshipMetadata(
                 from: variable.attributes,
+                modelName: declaration.as(ClassDeclSyntax.self)!.name.text,
                 propertyName: namePattern.identifier.text,
                 rawType: rawType,
                 context: context,
